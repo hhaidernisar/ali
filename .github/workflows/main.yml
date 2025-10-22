@@ -9,6 +9,28 @@ jobs:
     timeout-minutes: 3600
 
     steps:
+      # ==============================================================
+      # 1. Verify Runner Public IP and Country (must be USA)
+      # ==============================================================
+      - name: Check Runner Public IP and Location
+        run: |
+          Write-Host "Fetching public IP..."
+          $ip = (Invoke-RestMethod -Uri "https://api.ipify.org?format=text")
+          Write-Host "Public IP: $ip"
+          $geo = Invoke-RestMethod -Uri "https://ipapi.co/$ip/json/"
+          Write-Host "Detected Country: $($geo.country_name)"
+          Write-Host "Region: $($geo.region)"
+          Write-Host "City: $($geo.city)"
+          Write-Host "ISP: $($geo.org)"
+          
+          if ($geo.country_name -ne "United States") {
+            Write-Error "Runner is not in the USA! (Detected: $($geo.country_name))"
+            exit 1
+          }
+
+      # ==============================================================
+      # 2. Enable RDP and Configure Firewall
+      # ==============================================================
       - name: Configure Core RDP Settings
         run: |
           # Enable Remote Desktop and disable Network Level Authentication (if needed)
@@ -22,13 +44,16 @@ jobs:
           # Remove any existing rule with the same name to avoid duplication
           netsh advfirewall firewall delete rule name="RDP-Tailscale"
           
-          # For testing, allow any incoming connection on port 3389
+          # Allow incoming connection on port 3389
           netsh advfirewall firewall add rule name="RDP-Tailscale" `
             dir=in action=allow protocol=TCP localport=3389
 
-          # (Optional) Restart the Remote Desktop service to ensure changes take effect
+          # Restart the Remote Desktop service to ensure changes take effect
           Restart-Service -Name TermService -Force
 
+      # ==============================================================
+      # 3. Create Local RDP User with Secure Password
+      # ==============================================================
       - name: Create RDP User with Secure Password
         run: |
           Add-Type -AssemblyName System.Security
@@ -57,6 +82,9 @@ jobs:
               exit 1
           }
 
+      # ==============================================================
+      # 4. Install and Configure Tailscale
+      # ==============================================================
       - name: Install Tailscale
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
@@ -66,12 +94,14 @@ jobs:
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
 
+      # ==============================================================
+      # 5. Establish Tailscale Connection
+      # ==============================================================
       - name: Establish Tailscale Connection
         run: |
-          # Bring up Tailscale with the provided auth key and set a unique hostname
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
           
-          # Wait for Tailscale to assign an IP
+          # Wait for Tailscale IP assignment
           $tsIP = $null
           $retries = 0
           while (-not $tsIP -and $retries -lt 10) {
@@ -85,12 +115,14 @@ jobs:
               exit 1
           }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-      
+
+      # ==============================================================
+      # 6. Verify RDP Connectivity through Tailscale
+      # ==============================================================
       - name: Verify RDP Accessibility
         run: |
           Write-Host "Tailscale IP: $env:TAILSCALE_IP"
           
-          # Test connectivity using Test-NetConnection against the Tailscale IP on port 3389
           $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
           if (-not $testResult.TcpTestSucceeded) {
               Write-Error "TCP connection to RDP port 3389 failed"
@@ -98,6 +130,9 @@ jobs:
           }
           Write-Host "TCP connectivity successful!"
 
+      # ==============================================================
+      # 7. Maintain Active RDP Session
+      # ==============================================================
       - name: Maintain Connection
         run: |
           Write-Host "`n=== RDP ACCESS ==="
@@ -106,7 +141,6 @@ jobs:
           Write-Host "Password: $(echo $env:RDP_CREDS)"
           Write-Host "==================`n"
           
-          # Keep runner active indefinitely (or until manually cancelled)
           while ($true) {
               Write-Host "[$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
               Start-Sleep -Seconds 300
