@@ -90,6 +90,43 @@ jobs:
           Remove-Item $installerPath -Force
           Write-Host "Comet setup complete"
 
+      - name: Create Comet Shortcut on Desktop
+        run: |
+          $desktopPath = "C:\Users\RDP\Desktop"
+          $shortcutPath = "$desktopPath\Comet Browser.lnk"
+          
+          # Create desktop folder if it doesn't exist
+          New-Item -ItemType Directory -Path $desktopPath -Force | Out-Null
+          
+          # Try to find Comet executable in common locations
+          $cometExe = $null
+          $possiblePaths = @(
+              "C:\Program Files\Comet\comet.exe",
+              "C:\Program Files (x86)\Comet\comet.exe",
+              "C:\Program Files\Comet Browser\comet.exe",
+              "C:\Program Files (x86)\Comet Browser\comet.exe"
+          )
+          
+          foreach ($path in $possiblePaths) {
+              if (Test-Path $path) {
+                  $cometExe = $path
+                  break
+              }
+          }
+          
+          if ($cometExe) {
+              $WshShell = New-Object -ComObject WScript.Shell
+              $shortcut = $WshShell.CreateShortcut($shortcutPath)
+              $shortcut.TargetPath = $cometExe
+              $shortcut.WorkingDirectory = Split-Path $cometExe
+              $shortcut.Description = "Comet Browser"
+              $shortcut.Save()
+              
+              Write-Host "✓ Comet shortcut created on desktop at: $shortcutPath"
+          } else {
+              Write-Host "⚠ Comet executable not found in common locations. Shortcut creation skipped."
+          }
+
       - name: Connect to Tailscale
         run: |
           $hostname = "rdp-instance-${{ matrix.instance }}-run-${{ github.run_number }}"
