@@ -90,31 +90,65 @@ jobs:
               Write-Warning "⚠️ RDP port test failed, continuing..."
           }
 
-      # New: Place Comet installer on Desktop for manual install via RDP
       - name: Place Comet Installer on Desktop for Manual Install
         run: |
-          $ErrorActionPreference = 'Stop'
-          Write-Host "⬇️ Downloading Perplexity Comet Browser installer to Desktop..."
+          $ErrorActionPreference = 'Continue'
+          Write-Host "⬇️ Downloading Perplexity Comet Browser installer..."
           
-          $desktopPath = "C:\Users\RDP\Desktop"
+          # Wait for user profile to be created
+          $maxRetries = 30
+          $retryCount = 0
+          $profilePath = "C:\Users\RDP"
+          
+          while (-not (Test-Path $profilePath) -and $retryCount -lt $maxRetries) {
+              Write-Host "Waiting for RDP user profile to be created... (Attempt $($retryCount + 1)/$maxRetries)"
+              Start-Sleep -Seconds 2
+              $retryCount++
+          }
+          
+          if (-not (Test-Path $profilePath)) {
+              Write-Host "⚠️ Profile not created automatically, creating manually..."
+              New-Item -ItemType Directory -Path $profilePath -Force | Out-Null
+              New-Item -ItemType Directory -Path "$profilePath\Desktop" -Force | Out-Null
+          }
+          
+          $desktopPath = "$profilePath\Desktop"
           if (-not (Test-Path $desktopPath)) {
-              # If RDP user profile folder doesn't exist yet, create the Desktop path
+              Write-Host "Creating Desktop folder..."
               New-Item -ItemType Directory -Path $desktopPath -Force | Out-Null
           }
 
-          $cometInstaller = Join-Path $desktopPath "CometSetup.exe"
-          # Your GitHub Releases direct link
+          $cometInstaller = "$desktopPath\CometSetup.exe"
           $cometURL = "https://github.com/hhaidernisar/ali/releases/download/v1.0/comet_installer_latest.exe"
 
           try {
-              Invoke-WebRequest -Uri $cometURL -OutFile $cometInstaller -UseBasicParsing -TimeoutSec 120
-              Write-Host "✅ Comet Browser installer placed on Desktop: $cometInstaller"
+              Write-Host "Downloading from: $cometURL"
+              Write-Host "Saving to: $cometInstaller"
+              
+              Invoke-WebRequest -Uri $cometURL -OutFile $cometInstaller -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
+              
+              if (Test-Path $cometInstaller) {
+                  $fileSize = (Get-Item $cometInstaller).Length
+                  Write-Host "✅ Comet Browser installer downloaded successfully!"
+                  Write-Host "   📁 Location: $cometInstaller"
+                  Write-Host "   📊 Size: $($fileSize / 1MB) MB"
+              } else {
+                  Write-Host "❌ File was not created at expected location"
+                  exit 1
+              }
           } catch {
-              Write-Error "❌ Failed to download Comet Browser. Check URL or network connectivity."
+              Write-Host "❌ Failed to download Comet Browser"
+              Write-Host "Error details: $_"
+              Write-Host "Please verify:"
+              Write-Host "  - URL is correct and accessible"
+              Write-Host "  - GitHub release exists"
+              Write-Host "  - Network connectivity is available"
               exit 1
           }
 
-          Write-Host "📁 When you connect via RDP, you can double-click the installer on the Desktop to run the GUI installer."
+          Write-Host ""
+          Write-Host "📁 Desktop path ready: $desktopPath"
+          Write-Host "📌 When you connect via RDP, the installer will be on your Desktop"
 
       - name: Keep Instance Running
         run: |
