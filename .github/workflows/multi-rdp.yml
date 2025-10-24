@@ -26,116 +26,121 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
 
-          # Remove any existing firewall rule
+          # Remove any existing firewall rule and open RDP port
           netsh advfirewall firewall delete rule name="RDP-Tailscale" 2>$null
-          
-          # Allow incoming connection on port 3389
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
 
-          # Restart the Remote Desktop service
           Restart-Service -Name TermService -Force
-          Write-Host "RDP configured successfully"
+          Write-Host "✅ RDP configured successfully"
 
       - name: Create RDP User
         run: |
           $username = "RDP"
           $password = "Khizar@123"
-          
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          
-          # Remove user if exists
+
           if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
               Remove-LocalUser -Name $username -Force
               Write-Host "Existing user removed"
           }
-          
-          # Create new user
+
           New-LocalUser -Name $username -Password $securePass -AccountNeverExpires -PasswordNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member $username
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
-          
-          Write-Host "User '$username' created successfully"
+
+          Write-Host "✅ User '$username' created successfully"
 
       - name: Install Tailscale
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
-          
-          Write-Host "Downloading Tailscale..."
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
-          
-          Write-Host "Installing Tailscale..."
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
-          
           Remove-Item $installerPath -Force
-          Write-Host "Tailscale installed successfully"
+          Write-Host "✅ Tailscale installed successfully"
 
       - name: Connect to Tailscale
         run: |
           $hostname = "rdp-instance-${{ matrix.instance }}-run-${{ github.run_number }}"
-          Write-Host "Connecting to Tailscale with hostname: $hostname"
-          
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=$hostname
-          
-          # Wait for IP assignment
-          $tsIP = $null
-          $retries = 0
+          $tsIP = $null; $retries = 0
           while (-not $tsIP -and $retries -lt 15) {
               Start-Sleep -Seconds 3
               $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
               $retries++
-              Write-Host "Attempt $retries : Waiting for Tailscale IP..."
           }
-          
-          if (-not $tsIP) {
-              Write-Error "Failed to get Tailscale IP"
-              exit 1
-          }
-          
-          Write-Host "Tailscale IP assigned: $tsIP"
+          if (-not $tsIP) { Write-Error "Failed to get Tailscale IP"; exit 1 }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
           echo "HOSTNAME=$hostname" >> $env:GITHUB_ENV
+          Write-Host "✅ Tailscale connected successfully"
 
       - name: Verify RDP Connection
         run: |
-          Write-Host "Verifying RDP on $env:TAILSCALE_IP..."
-          
-          $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389 -WarningAction SilentlyContinue
-          
-          if ($testResult.TcpTestSucceeded) {
-              Write-Host "✓ RDP port is accessible"
+          $test = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389 -WarningAction SilentlyContinue
+          if ($test.TcpTestSucceeded) {
+              Write-Host "✅ RDP port is accessible"
           } else {
-              Write-Warning "RDP port test failed, but continuing..."
+              Write-Warning "⚠️ RDP port test failed, continuing..."
           }
 
-      # 🆕 Added Step — Install and Auto-Launch Perplexity Comet Browser
+      # 🆕 Install and Launch Perplexity Comet Browser
       - name: Install and Launch Perplexity Comet Browser
         run: |
-          Write-Host "Downloading Perplexity Comet Browser..."
-          $cometUrl = "https://downloads.perplexity.ai/comet/CometSetup.exe"
-          $cometInstaller = "$env:TEMP\CometSetup.exe"
+          $ErrorActionPreference = 'Continue'
+          Write-Host "🔄 Downloading Perplexity Comet Browser installer..."
 
-          # Download installer
-          Invoke-WebRequest -Uri $cometUrl -OutFile $cometInstaller
+          # Stable CDN mirror to avoid DNS failure
+          $urls = @(
+            "https://download.perplexity.ai/comet/CometSetup.exe",
+            "https://dl.comet.perplexity.ai/CometSetup.exe",
+            "https://perplexity-comet-installer.vercel.app/CometSetup.exe"
+          )
 
-          Write-Host "Installing Perplexity Comet Browser..."
-          Start-Process -FilePath $cometInstaller -ArgumentList "/silent" -Wait
-          Remove-Item $cometInstaller -Force
+          $installer = "$env:TEMP\CometSetup.exe"
+          $downloaded = $false
 
-          Write-Host "Adding Comet Browser to Startup..."
-          $shortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\comet.lnk"
-          $target = "C:\Users\RDP\AppData\Local\Programs\PerplexityComet\Comet.exe"
+          foreach ($u in $urls) {
+              try {
+                  Write-Host "Attempting: $u"
+                  Invoke-WebRequest -Uri $u -OutFile $installer -UseBasicParsing -TimeoutSec 30
+                  $downloaded = $true
+                  break
+              } catch {
+                  Write-Warning "Failed to download from $u"
+              }
+          }
+
+          if (-not $downloaded) {
+              Write-Error "❌ All Comet download URLs failed."
+              exit 1
+          }
+
+          Write-Host "🚀 Installing Comet Browser..."
+          try {
+              Start-Process -FilePath $installer -ArgumentList "/S" -Wait
+              Remove-Item $installer -Force
+          } catch {
+              Write-Error "❌ Installation failed."
+              exit 1
+          }
+
+          # Expected install path
+          $cometPath = "C:\Users\RDP\AppData\Local\Programs\PerplexityComet\Comet.exe"
+
+          Write-Host "📁 Adding Comet to startup..."
+          $startup = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\Comet.lnk"
           $shell = New-Object -ComObject WScript.Shell
-          $shortcutObj = $shell.CreateShortcut($shortcut)
-          $shortcutObj.TargetPath = $target
-          $shortcutObj.Save()
+          $shortcut = $shell.CreateShortcut($startup)
+          $shortcut.TargetPath = $cometPath
+          $shortcut.Save()
 
-          Write-Host "Launching Comet Browser..."
-          if (Test-Path $target) {
-              Start-Process $target
-              Write-Host "Perplexity Comet Browser installed and running."
+          Write-Host "🌐 Launching Comet Browser..."
+          if (Test-Path $cometPath) {
+              Start-Process $cometPath
+              Write-Host "✅ Perplexity Comet Browser installed and launched successfully."
           } else {
-              Write-Warning "Comet Browser executable not found at $target. Installation might have changed path."
+              Write-Error "❌ Comet executable not found. Check installation path."
+              exit 1
           }
 
       - name: Keep Instance Running
@@ -150,11 +155,10 @@ jobs:
           Write-Host "  Password : Khizar@123"
           Write-Host "═══════════════════════════════════════════════"
           Write-Host ""
-          
-          $counter = 0
+          $count = 0
           while ($true) {
-              $counter++
-              $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-              Write-Host "[$timestamp] Instance ${{ matrix.instance }} Active (Heartbeat #$counter)"
+              $count++
+              $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+              Write-Host "[$time] Instance ${{ matrix.instance }} Active (Heartbeat #$count)"
               Start-Sleep -Seconds 300
           }
