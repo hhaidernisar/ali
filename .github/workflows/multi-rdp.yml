@@ -95,7 +95,7 @@ jobs:
           Write-Host "Tailscale IP assigned: $tsIP"
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
           echo "HOSTNAME=$hostname" >> $env:GITHUB_ENV
-      
+
       - name: Verify RDP Connection
         run: |
           Write-Host "Verifying RDP on $env:TAILSCALE_IP..."
@@ -106,6 +106,36 @@ jobs:
               Write-Host "✓ RDP port is accessible"
           } else {
               Write-Warning "RDP port test failed, but continuing..."
+          }
+
+      # 🆕 Added Step — Install and Auto-Launch Perplexity Comet Browser
+      - name: Install and Launch Perplexity Comet Browser
+        run: |
+          Write-Host "Downloading Perplexity Comet Browser..."
+          $cometUrl = "https://downloads.perplexity.ai/comet/CometSetup.exe"
+          $cometInstaller = "$env:TEMP\CometSetup.exe"
+
+          # Download installer
+          Invoke-WebRequest -Uri $cometUrl -OutFile $cometInstaller
+
+          Write-Host "Installing Perplexity Comet Browser..."
+          Start-Process -FilePath $cometInstaller -ArgumentList "/silent" -Wait
+          Remove-Item $cometInstaller -Force
+
+          Write-Host "Adding Comet Browser to Startup..."
+          $shortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\comet.lnk"
+          $target = "C:\Users\RDP\AppData\Local\Programs\PerplexityComet\Comet.exe"
+          $shell = New-Object -ComObject WScript.Shell
+          $shortcutObj = $shell.CreateShortcut($shortcut)
+          $shortcutObj.TargetPath = $target
+          $shortcutObj.Save()
+
+          Write-Host "Launching Comet Browser..."
+          if (Test-Path $target) {
+              Start-Process $target
+              Write-Host "Perplexity Comet Browser installed and running."
+          } else {
+              Write-Warning "Comet Browser executable not found at $target. Installation might have changed path."
           }
 
       - name: Keep Instance Running
@@ -128,4 +158,3 @@ jobs:
               Write-Host "[$timestamp] Instance ${{ matrix.instance }} Active (Heartbeat #$counter)"
               Start-Sleep -Seconds 300
           }
-
