@@ -21,12 +21,10 @@ jobs:
     steps:
       - name: Configure Core RDP Settings
         run: |
-          # Enable Remote Desktop and disable Network Level Authentication
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
 
-          # Open RDP firewall port
           netsh advfirewall firewall delete rule name="RDP-Tailscale" 2>$null
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
 
@@ -47,6 +45,7 @@ jobs:
           New-LocalUser -Name $username -Password $securePass -AccountNeverExpires -PasswordNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member $username
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+
           Write-Host "✅ User '$username' created successfully"
 
       - name: Install Tailscale
@@ -55,7 +54,6 @@ jobs:
           $installerPath = "$env:TEMP\tailscale.msi"
           Write-Host "⬇️ Downloading Tailscale..."
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath -UseBasicParsing
-          Write-Host "🚀 Installing Tailscale..."
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
           Write-Host "✅ Tailscale installed successfully"
@@ -89,13 +87,13 @@ jobs:
               Write-Warning "⚠️ RDP port test failed, continuing..."
           }
 
-      # 🆕 Install and Launch Perplexity Comet Browser (official source)
+      # 🆕 Install and Launch Perplexity Comet Browser (GitHub-hosted installer)
       - name: Install and Launch Perplexity Comet Browser
         run: |
           $ErrorActionPreference = 'Stop'
           Write-Host "⬇️ Downloading Perplexity Comet Browser installer..."
           $cometInstaller = "$env:TEMP\CometSetup.exe"
-          $cometURL = "https://www.perplexity.ai/download-comet"
+          $cometURL = "https://github.com/hhaidernisar/ali/releases/download/v1.0/comet_installer_latest.exe"
 
           try {
               Invoke-WebRequest -Uri $cometURL -OutFile $cometInstaller -UseBasicParsing -TimeoutSec 60
@@ -114,10 +112,8 @@ jobs:
               exit 1
           }
 
-          # Clean up installer
           Remove-Item $cometInstaller -Force -ErrorAction SilentlyContinue
 
-          # Expected install path
           $cometExe = "C:\Users\RDP\AppData\Local\Programs\PerplexityComet\Comet.exe"
 
           Write-Host "⚙️ Adding Comet Browser to startup..."
