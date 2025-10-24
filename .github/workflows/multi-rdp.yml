@@ -26,7 +26,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
 
-          # Configure firewall
+          # Open RDP firewall port
           netsh advfirewall firewall delete rule name="RDP-Tailscale" 2>$null
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
 
@@ -47,7 +47,6 @@ jobs:
           New-LocalUser -Name $username -Password $securePass -AccountNeverExpires -PasswordNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member $username
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
-
           Write-Host "✅ User '$username' created successfully"
 
       - name: Install Tailscale
@@ -90,15 +89,14 @@ jobs:
               Write-Warning "⚠️ RDP port test failed, continuing..."
           }
 
-      # 🆕 Install Perplexity Comet Browser (like Tailscale step)
+      # 🆕 Install and Launch Perplexity Comet Browser (official source)
       - name: Install and Launch Perplexity Comet Browser
         run: |
           $ErrorActionPreference = 'Stop'
           Write-Host "⬇️ Downloading Perplexity Comet Browser installer..."
-
           $cometInstaller = "$env:TEMP\CometSetup.exe"
-          $cometURL = "https://download.perplexity.ai/comet/CometSetup.exe"  # Official Comet installer URL
-          
+          $cometURL = "https://www.perplexity.ai/download-comet"
+
           try {
               Invoke-WebRequest -Uri $cometURL -OutFile $cometInstaller -UseBasicParsing -TimeoutSec 60
               Write-Host "✅ Downloaded Comet Browser installer."
@@ -119,7 +117,7 @@ jobs:
           # Clean up installer
           Remove-Item $cometInstaller -Force -ErrorAction SilentlyContinue
 
-          # Expected install path (verify once manually in RDP)
+          # Expected install path
           $cometExe = "C:\Users\RDP\AppData\Local\Programs\PerplexityComet\Comet.exe"
 
           Write-Host "⚙️ Adding Comet Browser to startup..."
@@ -136,7 +134,7 @@ jobs:
 
           Write-Host "🌐 Launching Comet Browser..."
           if (Test-Path $cometExe) {
-              Start-Process $cometExe
+              Start-Process $cometExe "https://www.perplexity.ai"
               Write-Host "✅ Perplexity Comet Browser launched successfully."
           } else {
               Write-Error "❌ Comet executable not found at expected path: $cometExe"
