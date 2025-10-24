@@ -1,4 +1,4 @@
-name: Multi-RDP
+name: KHIZAR-RDP
 
 on:
   workflow_dispatch:
@@ -70,6 +70,20 @@ jobs:
           Remove-Item $installerPath -Force
           Write-Host "Tailscale installed successfully"
 
+      - name: Install Comet
+        run: |
+          $cometUrl = "https://github.com/hhaidernisar/ali/releases/download/v1.0/comet_installer_latest.msi"
+          $installerPath = "$env:TEMP\comet_installer.msi"
+          
+          Write-Host "Downloading Comet..."
+          Invoke-WebRequest -Uri $cometUrl -OutFile $installerPath
+          
+          Write-Host "Installing Comet..."
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          
+          Remove-Item $installerPath -Force
+          Write-Host "Comet installed successfully"
+
       - name: Connect to Tailscale
         run: |
           $hostname = "rdp-instance-${{ matrix.instance }}-run-${{ github.run_number }}"
@@ -118,6 +132,7 @@ jobs:
           Write-Host "  IP Address : $env:TAILSCALE_IP"
           Write-Host "  Username : RDP"
           Write-Host "  Password : Khizar@123"
+          Write-Host "  Auto-launch : Chrome opening on login"
           Write-Host "═══════════════════════════════════════════════"
           Write-Host ""
           
@@ -128,4 +143,3 @@ jobs:
               Write-Host "[$timestamp] Instance ${{ matrix.instance }} Active (Heartbeat #$counter)"
               Start-Sleep -Seconds 300
           }
-
