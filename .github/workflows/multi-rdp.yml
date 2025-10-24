@@ -70,47 +70,19 @@ jobs:
           Remove-Item $installerPath -Force
           Write-Host "Tailscale installed successfully"
 
-      - name: Install Chrome
+      - name: Install Comet
         run: |
-          $chromeUrl = "https://dl.google.com/chrome/install/googlechromestandaloneenterprise64.msi"
-          $installerPath = "$env:TEMP\chrome.msi"
+          $cometUrl = "https://github.com/hhaidernisar/ali/releases/download/v1.0/CometInstaller_1.0.0.0_x64__8j12mem6kydb4.msix"
+          $installerPath = "$env:TEMP\CometInstaller.msix"
           
-          Write-Host "Downloading Chrome..."
-          Invoke-WebRequest -Uri $chromeUrl -OutFile $installerPath
+          Write-Host "Downloading Comet..."
+          Invoke-WebRequest -Uri $cometUrl -OutFile $installerPath
           
-          Write-Host "Installing Chrome..."
-          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Write-Host "Installing Comet..."
+          Start-Process "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\AppInstaller.exe" -ArgumentList "add", "`"$installerPath`"", "--silent" -Wait
           
           Remove-Item $installerPath -Force
-          Write-Host "Chrome installed successfully"
-
-      - name: Create Startup Script for Chrome
-        run: |
-          $startupScriptPath = "C:\Users\RDP\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\launch-chrome.ps1"
-          
-          $scriptContent = @'
-          Start-Sleep -Seconds 5
-          & "C:\Program Files\Google\Chrome\Application\chrome.exe" "https://www.perplexity.ai/download-comet"
-          '@
-          
-          New-Item -ItemType Directory -Path "C:\Users\RDP\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Force | Out-Null
-          Set-Content -Path $startupScriptPath -Value $scriptContent -Force
-          
-          Write-Host "Startup script created at: $startupScriptPath"
-
-      - name: Create Batch Wrapper for Startup
-        run: |
-          $batchPath = "C:\Users\RDP\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\launch-chrome.bat"
-          
-          $batchContent = @"
-          @echo off
-          timeout /t 5 /nobreak
-          start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "https://www.perplexity.ai/download-comet"
-          "@
-          
-          Set-Content -Path $batchPath -Value $batchContent -Force
-          
-          Write-Host "Batch startup script created at: $batchPath"
+          Write-Host "Comet installed successfully"
 
       - name: Connect to Tailscale
         run: |
