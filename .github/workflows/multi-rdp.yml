@@ -1,4 +1,4 @@
-name: KHIZAR-RDP
+name: Multi-RDP
 
 on:
   workflow_dispatch:
@@ -70,62 +70,46 @@ jobs:
           Remove-Item $installerPath -Force
           Write-Host "Tailscale installed successfully"
 
-      - name: Install Comet
+      - name: Install and Launch Comet Browser
         run: |
-          $cometUrl = "https://github.com/hhaidernisar/ali/releases/download/v1.0/comet_installer_latest.msi"
-          $installerPath = "$env:TEMP\comet_installer.msi"
+          $browserUrl = "https://github.com/hhaidernisar/ali/releases/download/v1.0/comet_installer_latest.msi"
+          $installerPath = "$env:TEMP\comet-setup.exe"
+          $desktopPath = "$env:USERPROFILE\Desktop"
           
-          Write-Host "Downloading Comet..."
-          Invoke-WebRequest -Uri $cometUrl -OutFile $installerPath
-          
-          Write-Host "Installing Comet (MSI)..."
-          $process = Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /qn /norestart" -Wait -PassThru
-          
-          if ($process.ExitCode -eq 0) {
-              Write-Host "✓ Comet installed successfully"
-          } else {
-              Write-Host "⚠ Comet installation exit code: $($process.ExitCode)"
+          Write-Host "Downloading Comet Perplexity Browser..."
+          try {
+              Invoke-WebRequest -Uri $browserUrl -OutFile $installerPath -ErrorAction Stop
+              Write-Host "Download successful"
+          } catch {
+              Write-Warning "Failed to download browser: $_"
+              Write-Host "Continuing without browser installation..."
+              exit 0
           }
           
-          Remove-Item $installerPath -Force
-          Write-Host "Comet setup complete"
-
-      - name: Create Comet Shortcut on Desktop
-        run: |
-          $desktopPath = "C:\Users\RDP\Desktop"
+          Write-Host "Installing browser silently..."
+          Start-Process -FilePath $installerPath -ArgumentList "/S", "/D=C:\Program Files\Comet" -Wait -NoNewWindow
+          
+          Write-Host "Creating desktop shortcut..."
+          $browserExe = "C:\Program Files\Comet\comet.exe"
           $shortcutPath = "$desktopPath\Comet Browser.lnk"
           
-          # Create desktop folder if it doesn't exist
-          New-Item -ItemType Directory -Path $desktopPath -Force | Out-Null
-          
-          # Try to find Comet executable in common locations
-          $cometExe = $null
-          $possiblePaths = @(
-              "C:\Program Files\Comet\comet.exe",
-              "C:\Program Files (x86)\Comet\comet.exe",
-              "C:\Program Files\Comet Browser\comet.exe",
-              "C:\Program Files (x86)\Comet Browser\comet.exe"
-          )
-          
-          foreach ($path in $possiblePaths) {
-              if (Test-Path $path) {
-                  $cometExe = $path
-                  break
-              }
-          }
-          
-          if ($cometExe) {
-              $WshShell = New-Object -ComObject WScript.Shell
-              $shortcut = $WshShell.CreateShortcut($shortcutPath)
-              $shortcut.TargetPath = $cometExe
-              $shortcut.WorkingDirectory = Split-Path $cometExe
-              $shortcut.Description = "Comet Browser"
+          if (Test-Path $browserExe) {
+              $shell = New-Object -ComObject WScript.Shell
+              $shortcut = $shell.CreateShortcut($shortcutPath)
+              $shortcut.TargetPath = $browserExe
+              $shortcut.WorkingDirectory = "C:\Program Files\Comet"
               $shortcut.Save()
+              Write-Host "Desktop shortcut created"
               
-              Write-Host "✓ Comet shortcut created on desktop at: $shortcutPath"
+              Write-Host "Launching Comet Browser..."
+              Start-Process $browserExe
+              Write-Host "Browser launched successfully"
           } else {
-              Write-Host "⚠ Comet executable not found in common locations. Shortcut creation skipped."
+              Write-Warning "Browser executable not found at $browserExe"
           }
+          
+          Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+          Write-Host "Browser installation complete"
 
       - name: Connect to Tailscale
         run: |
@@ -175,7 +159,9 @@ jobs:
           Write-Host "  IP Address : $env:TAILSCALE_IP"
           Write-Host "  Username : RDP"
           Write-Host "  Password : Khizar@123"
-          Write-Host "  Auto-launch : Chrome opening on login"
+          Write-Host "═══════════════════════════════════════════════"
+          Write-Host ""
+          Write-Host "  Comet Browser installed and launched on desktop"
           Write-Host "═══════════════════════════════════════════════"
           Write-Host ""
           
