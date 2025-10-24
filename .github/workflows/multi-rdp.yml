@@ -6,7 +6,7 @@ on:
       instance_count:
         description: 'Number of RDP instances to create'
         required: true
-        default: '6'
+        default: '5'
 
 jobs:
   secure-rdp:
@@ -14,9 +14,9 @@ jobs:
     timeout-minutes: 3600
     strategy:
       matrix:
-        instance: [1, 2, 3, 4, 5, 6]
+        instance: [1, 2, 3, 4, 5]
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 5
 
     steps:
       - name: Configure Core RDP Settings
@@ -170,3 +170,4 @@ jobs:
               $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
               Write-Host "[$timestamp] Instance ${{ matrix.instance }} Active (Heartbeat #$counter)"
               Start-Sleep -Seconds 300
+          }
