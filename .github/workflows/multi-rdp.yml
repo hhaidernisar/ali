@@ -78,11 +78,17 @@ jobs:
           Write-Host "Downloading Comet..."
           Invoke-WebRequest -Uri $cometUrl -OutFile $installerPath
           
-          Write-Host "Installing Comet..."
-          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Write-Host "Installing Comet (MSI)..."
+          $process = Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /qn /norestart" -Wait -PassThru
+          
+          if ($process.ExitCode -eq 0) {
+              Write-Host "✓ Comet installed successfully"
+          } else {
+              Write-Host "⚠ Comet installation exit code: $($process.ExitCode)"
+          }
           
           Remove-Item $installerPath -Force
-          Write-Host "Comet installed successfully"
+          Write-Host "Comet setup complete"
 
       - name: Connect to Tailscale
         run: |
