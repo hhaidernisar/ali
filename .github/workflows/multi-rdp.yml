@@ -70,52 +70,6 @@ jobs:
           Remove-Item $installerPath -Force
           Write-Host "Tailscale installed successfully"
 
-      - name: Install and Launch Comet Browser
-        run: |
-          $browserUrl = "https://github.com/khaidernizar/ai/releases/download/v1.0/comet_installer_latest.msi"
-          $installerPath = "$env:TEMP\comet-setup.msi"
-          $desktopPath = "$env:USERPROFILE\Desktop"
-          
-          Write-Host "Downloading Comet Perplexity Browser..."
-          try {
-              Invoke-WebRequest -Uri $browserUrl -OutFile $installerPath -ErrorAction Stop
-              Write-Host "Download successful"
-          } catch {
-              Write-Warning "Failed to download browser: $_"
-              Write-Host "Continuing without browser installation..."
-              exit 0
-          }
-          
-          Write-Host "Installing browser via MSI..."
-          try {
-              Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait -NoNewWindow
-              Write-Host "Browser installation completed"
-          } catch {
-              Write-Warning "MSI installation failed: $_"
-          }
-          
-          Write-Host "Creating desktop shortcut..."
-          $browserExe = "C:\Program Files\Comet\comet.exe"
-          $shortcutPath = "$desktopPath\Comet Browser.lnk"
-          
-          if (Test-Path $browserExe) {
-              $shell = New-Object -ComObject WScript.Shell
-              $shortcut = $shell.CreateShortcut($shortcutPath)
-              $shortcut.TargetPath = $browserExe
-              $shortcut.WorkingDirectory = "C:\Program Files\Comet"
-              $shortcut.Save()
-              Write-Host "Desktop shortcut created"
-              
-              Write-Host "Launching Comet Browser..."
-              Start-Process $browserExe
-              Write-Host "Browser launched successfully"
-          } else {
-              Write-Warning "Browser executable not found at $browserExe"
-          }
-          
-          Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-          Write-Host "Browser installation complete"
-
       - name: Connect to Tailscale
         run: |
           $hostname = "rdp-instance-${{ matrix.instance }}-run-${{ github.run_number }}"
@@ -166,9 +120,6 @@ jobs:
           Write-Host "  Password : Khizar@123"
           Write-Host "═══════════════════════════════════════════════"
           Write-Host ""
-          Write-Host "  Comet Browser installed and launched on desktop"
-          Write-Host "═══════════════════════════════════════════════"
-          Write-Host ""
           
           $counter = 0
           while ($true) {
@@ -177,3 +128,4 @@ jobs:
               Write-Host "[$timestamp] Instance ${{ matrix.instance }} Active (Heartbeat #$counter)"
               Start-Sleep -Seconds 300
           }
+
